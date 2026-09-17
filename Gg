@@ -360,10 +360,10 @@ local function EnableFastMelee(state)
     end
 end
 
-local LeftGroupbox = Tabs.Main:AddLeftGroupbox("Aimbot & Combat")
-local RightGroupbox = Tabs.Main:AddRightGroupbox("Silent Aim & Features")
+local LeftGroupbox = Tabs.Main:AddLeftGroupbox("Aimbot")
+local RightGroupbox = Tabs.Main:AddRightGroupbox("Silent Aim")
 
-local TriggerbotGroupbox = Tabs.Main:AddRightGroupbox("Triggerbot (Beta)")
+local TriggerbotGroupbox = Tabs.Main:AddRightGroupbox("Triggerbot")
 
 TriggerbotGroupbox:AddToggle("TriggerbotBetaToggle", {
     Text = "ENABLED",
