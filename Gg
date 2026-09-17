@@ -1,0 +1,863 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo.."Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo.."addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo.."addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true
+
+local Window = Library:CreateWindow({
+    Title = "APOCALYPSE BETA V3",
+    Footer = "DISCORD.GG/SDAPD5UXC",
+    Icon = 95816097006870,
+    NotifySide = "Right",
+    ShowCustomCursor = true
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main", "crosshair"),
+    ["UI Settings"] = Window:AddTab("UI Settings", "settings")
+}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local AimbotEnabled = false
+local AimbotWallCheck = false
+local ShowFOV = false
+local FillFOV = false
+local FOVTransparency = 0 
+local FOVRadius = 300
+local FOVColor = Color3.fromRGB(255, 255, 255)
+
+getgenv().SilentAimEnabled = false
+local SilentWallCheck = false
+local SilentShowFOV = false
+local SilentFillFOV = false
+local SilentFOVTransparency = 0
+local SilentFOVRadius = 300
+local SilentFOVColor = Color3.fromRGB(255, 255, 255)
+local activeTargetPos = nil
+
+local KatanaFlashEnabled = false
+local EscudoEnabled = false
+local ManipulationText = ""
+
+local OrbitActive = false
+local OrbitStuds = 5
+local OrbitSpeed = 2
+local OrbitAngle = 1
+local OrbitHeight = 0
+
+local RagebotEnabled = false
+local AntiKnifeEnabled = false
+local RageMode = "GUN"
+
+local targetPos = CFrame.new(9000, 9000, 9000)
+local projectiles = {}
+local slingConn
+local childAddedConn
+local childRemovedConn
+
+local function setupSlingshot()
+    childAddedConn = workspace.ChildAdded:Connect(function(o)
+        if not o:IsA("BasePart") then return end
+        if o.Name == "CoreProjectile" then
+            projectiles[o] = true
+        elseif o.Name == "Part" then
+            task.defer(function()
+                if o and o.Parent and o.AssemblyLinearVelocity.Magnitude > 50 then
+                    projectiles[o] = true
+                end
+            end)
+        end
+    end)
+    
+    childRemovedConn = workspace.ChildRemoved:Connect(function(o)
+        projectiles[o] = nil
+    end)
+    
+    slingConn = RunService.Heartbeat:Connect(function()
+        pcall(function()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local h = p.Character:FindFirstChild("HumanoidRootPart")
+                    if h then
+                        h.CFrame = targetPos
+                        h.AssemblyLinearVelocity = Vector3.zero
+                        h.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end 
+            end
+            
+            for _, o in pairs(workspace:GetChildren()) do
+                if o.Name == "CoreProjectile" and o:IsA("BasePart") then
+                    o.CFrame = targetPos
+                    o.AssemblyLinearVelocity = Vector3.zero
+                end 
+            end
+            
+            for p in pairs(projectiles) do
+                if p and p.Parent then
+                    p.CFrame = targetPos
+                    p.AssemblyLinearVelocity = Vector3.zero
+                else
+                    projectiles[p] = nil
+                end 
+            end
+        end)
+    end)
+end
+
+local function cleanupSlingshot()
+    if slingConn then slingConn:Disconnect(); slingConn = nil end
+    if childAddedConn then childAddedConn:Disconnect(); childAddedConn = nil end
+    if childRemovedConn then childRemovedConn:Disconnect(); childRemovedConn = nil end
+    table.clear(projectiles)
+end
+
+local MeleeRangeEnabled = false
+local MeleeRangeMultiplier = 1
+local KnifeModeEnabled = false
+
+local AlwaysBackstapEnabled = false
+local BackstapMultiplier = 1
+local FullAutoEnabled = false
+
+local TriggerbotBetaEnabled = false
+local ForgotTimeVal = 0
+local ReaccionTimeVal = 0
+local CooldawnVal = 0
+local TimeOfShooterVal = 0
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 64
+FOVCircle.Radius = FOVRadius
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+FOVCircle.ZIndex = 999
+FOVCircle.Transparency = 1
+FOVCircle.Color = FOVColor
+FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+local SilentFOVCircle = Drawing.new("Circle")
+SilentFOVCircle.Thickness = 1.5
+SilentFOVCircle.NumSides = 64
+SilentFOVCircle.Radius = SilentFOVRadius
+SilentFOVCircle.Filled = false
+SilentFOVCircle.Visible = false
+SilentFOVCircle.ZIndex = 999
+SilentFOVCircle.Transparency = 1
+SilentFOVCircle.Color = SilentFOVColor
+SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+local ManipLabel = Instance.new("TextLabel", ScreenGui)
+ManipLabel.Size = UDim2.new(0, 300, 0, 50)
+ManipLabel.Position = UDim2.new(0.5, -150, 0.4, 0)
+ManipLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+ManipLabel.BackgroundTransparency = 1
+ManipLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+ManipLabel.TextScaled = true
+ManipLabel.Font = Enum.Font.SourceSansBold
+ManipLabel.Text = ""
+
+local function UpdateFOV()
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircle.Radius = FOVRadius
+    FOVCircle.Color = FOVColor
+    FOVCircle.Filled = FillFOV
+    FOVCircle.Transparency = 1 - (FOVTransparency / 100)
+    FOVCircle.Visible = ShowFOV and AimbotEnabled
+
+    SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    SilentFOVCircle.Radius = SilentFOVRadius
+    SilentFOVCircle.Color = SilentFOVColor
+    SilentFOVCircle.Filled = SilentFillFOV
+    SilentFOVCircle.Transparency = 1 - (SilentFOVTransparency / 100)
+    SilentFOVCircle.Visible = SilentShowFOV and getgenv().SilentAimEnabled
+end
+
+local function isTargetValid(plr)
+    if not plr or plr == LocalPlayer then return false end
+    local char = plr.Character
+    if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then return false end
+    local myT, thrT = LocalPlayer:GetAttribute("TeamID"), plr:GetAttribute("TeamID")
+    if myT ~= nil and thrT ~= nil then return tostring(myT) ~= tostring(thrT) end
+    if LocalPlayer.Team and plr.Team then return LocalPlayer.Team ~= plr.Team end
+    return true
+end
+
+local function getValidHead(char)
+    local head = char:FindFirstChild("Head")
+    if not head then return nil end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    local result = workspace:Raycast(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position).Unit * 1000, params)
+    return (result == nil or result.Instance:IsDescendantOf(char)) and head or nil
+end
+
+local function GetClosestPlayerAimbot()
+    local closest = nil
+    local shortestDistance = FOVRadius
+    for _, player in pairs(Players:GetPlayers()) do
+        if isTargetValid(player) and player.Character:FindFirstChild("HumanoidRootPart") then
+            local head = player.Character:FindFirstChild("Head") or player.Character.HumanoidRootPart
+            
+            if AimbotWallCheck then
+                local valid = getValidHead(player.Character)
+                if not valid then continue end
+            end
+
+            local params = RaycastParams.new()
+            params.FilterType = Enum.RaycastFilterType.Exclude
+            params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+            local result = workspace:Raycast(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position).Unit * 1000, params)
+            if result == nil or result.Instance:IsDescendantOf(player.Character) then
+                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local distance = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closest = player
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+local function GetClosestTargetPlayer()
+    local closest = nil
+    local shortestDist = math.huge
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if isTargetValid(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot then
+                local dist = (myRoot.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    closest = plr
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    UpdateFOV()
+
+    local enemyVisible = false
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if isTargetValid(plr) and plr.Character:FindFirstChild("Head") then
+            local _, onScreen = Camera:WorldToViewportPoint(plr.Character.Head.Position)
+            if onScreen then enemyVisible = true break end
+        end
+    end
+
+    if enemyVisible and (KatanaFlashEnabled or EscudoEnabled) then
+        ManipulationText = "MANIPULATED"
+    else
+        ManipulationText = ""
+    end
+    ManipLabel.Text = ManipulationText
+
+    if not getgenv().SilentAimEnabled then activeTargetPos = nil return end
+    local bestHead, shortestDist, center = nil, 9e9, Camera.ViewportSize / 2
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local char = plr.Character
+        if char and isTargetValid(plr) then
+            local head = char:FindFirstChild("Head")
+            if head then
+                local dist = (head.Position - Camera.CFrame.Position).Magnitude
+                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                if onScreen and dist <= SilentFOVRadius then
+                    local fovDist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if fovDist < shortestDist then
+                        if SilentWallCheck then
+                            local valid = getValidHead(char)
+                            if not valid then continue end
+                        end
+
+                        local valid = getValidHead(char)
+                        if valid then shortestDist = fovDist; bestHead = valid end
+                    end
+                end
+            end
+        end
+    end
+    activeTargetPos = bestHead and bestHead.Position or nil
+end)
+
+local old; old = hookmetamethod(game, "__index", newcclosure(function(self, idx)
+    if getgenv().SilentAimEnabled and activeTargetPos and not checkcaller() and idx == "ViewportSize" and self == Camera then
+        local pos, on = Camera:WorldToViewportPoint(activeTargetPos)
+        if on then return Vector2.new(pos.X * 2, pos.Y * 2) end
+    end
+    return old(self, idx)
+end))
+
+local function toggleTableAttribute(attr, val)
+    if getgc then
+        for _, gcVal in pairs(getgc(true)) do 
+            if type(gcVal) == "table" and rawget(gcVal, attr) then 
+                gcVal[attr] = val 
+            end 
+        end 
+    end
+end
+
+local function EnableRapidFire(state)
+    if state then
+        toggleTableAttribute("ShootCooldown", 0)
+        toggleTableAttribute("ShootSpread", 0)
+        toggleTableAttribute("ShootRecoil", 0)
+    end
+end
+
+local cachedMeleeTables = {}
+local meleeCacheInitialized = false
+local function cacheMeleeTables()
+    if meleeCacheInitialized then return end
+    meleeCacheInitialized = true
+    task.spawn(function()
+        pcall(function()
+            if getgc then
+                for _, gcVal in pairs(getgc(true)) do
+                    if type(gcVal) == "table" then
+                        if rawget(gcVal, "MeleeCooldown") or rawget(gcVal, "SwingCooldown") or rawget(gcVal, "SlashCooldown") or rawget(gcVal, "AttackCooldown") or rawget(gcVal, "HitCooldown") then
+                            table.insert(cachedMeleeTables, gcVal)
+                        end
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+local function EnableFastMelee(state)
+    if state then
+        cacheMeleeTables()
+        pcall(function()
+            for _, gcVal in ipairs(cachedMeleeTables) do
+                if rawget(gcVal, "MeleeCooldown") then gcVal.MeleeCooldown = 0 end
+                if rawget(gcVal, "SwingCooldown") then gcVal.SwingCooldown = 0 end
+                if rawget(gcVal, "SlashCooldown") then gcVal.SlashCooldown = 0 end
+                if rawget(gcVal, "AttackCooldown") then gcVal.AttackCooldown = 0 end
+                if rawget(gcVal, "HitCooldown") then gcVal.HitCooldown = 0 end
+            end
+        end)
+    end
+end
+
+local LeftGroupbox = Tabs.Main:AddLeftGroupbox("Aimbot & Combat")
+local RightGroupbox = Tabs.Main:AddRightGroupbox("Silent Aim & Features")
+
+local TriggerbotGroupbox = Tabs.Main:AddRightGroupbox("Triggerbot (Beta)")
+
+TriggerbotGroupbox:AddToggle("TriggerbotBetaToggle", {
+    Text = "ENABLED",
+    Default = false,
+    Callback = function(Value)
+        TriggerbotBetaEnabled = Value
+    end
+})
+
+TriggerbotGroupbox:AddSlider("ForgotTimeSlider", {
+    Text = "FORGOT TIME",
+    Default = 0, Min = 0, Max = 35, Rounding = 0,
+    Callback = function(Value)
+        ForgotTimeVal = Value
+    end
+})
+
+TriggerbotGroupbox:AddSlider("ReaccionTimeSlider", {
+    Text = "REACCION TIME",
+    Default = 0, Min = 0, Max = 35, Rounding = 0,
+    Callback = function(Value)
+        ReaccionTimeVal = Value
+    end
+})
+
+TriggerbotGroupbox:AddSlider("CooldawnSlider", {
+    Text = "COOLDAWN",
+    Default = 0, Min = 0, Max = 35, Rounding = 0,
+    Callback = function(Value)
+        CooldawnVal = Value
+    end
+})
+
+TriggerbotGroupbox:AddSlider("TimeOfShooterSlider", {
+    Text = "TIME OF SHOOTER",
+    Default = 0, Min = 0, Max = 35, Rounding = 0,
+    Callback = function(Value)
+        TimeOfShooterVal = Value
+    end
+})
+
+LeftGroupbox:AddToggle("AimbotToggle", {
+    Text = "ENABLED (Aggressive)",
+    Default = false,
+    Tooltip = "Aimbot agresivo con Wall Check",
+    Callback = function(Value)
+        AimbotEnabled = Value
+        UpdateFOV()
+    end
+}):AddKeyPicker("AimbotKey", {
+    Default = "E",
+    Text = "Aimbot Keybind",
+    Mode = "Toggle",
+    SyncToggleState = true
+})
+
+LeftGroupbox:AddToggle("AimbotWallCheckToggle", {
+    Text = "WALL CHECK",
+    Default = false,
+    Callback = function(Value)
+        AimbotWallCheck = Value
+    end
+})
+
+LeftGroupbox:AddToggle("ShowFOVToggle", {
+    Text = "SHOW FOV",
+    Default = false,
+    Callback = function(Value)
+        ShowFOV = Value
+        UpdateFOV()
+    end
+}):AddColorPicker("FOVColorPicker", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "FOV Color",
+    Callback = function(Value)
+        FOVColor = Value
+        UpdateFOV()
+    end
+})
+
+LeftGroupbox:AddToggle("FillFOVToggle", {
+    Text = "FILL FOV",
+    Default = false,
+    Callback = function(Value)
+        FillFOV = Value
+        UpdateFOV()
+    end
+})
+
+LeftGroupbox:AddSlider("FOVTransparency", {
+    Text = "TRANSPARENCY FOV",
+    Default = 0, Min = 0, Max = 100, Rounding = 0, Suffix = "%",
+    Callback = function(Value) FOVTransparency = Value; UpdateFOV() end
+})
+
+LeftGroupbox:AddSlider("FOVRadius", {
+    Text = "FOV RADIUS",
+    Default = 300, Min = 180, Max = 1000, Rounding = 0,
+    Callback = function(Value) FOVRadius = Value; UpdateFOV() end
+})
+
+local MeleeRangeGroupbox = Tabs.Main:AddLeftGroupbox("Melee Range")
+
+MeleeRangeGroupbox:AddToggle("MeleeRangeToggle", {
+    Text = "MELEE RANGE ENABLED",
+    Default = false,
+    Callback = function(Value)
+        MeleeRangeEnabled = Value
+    end
+})
+
+MeleeRangeGroupbox:AddSlider("MeleeRangeMultiplierSlider", {
+    Text = "Melee Range Multiplier",
+    Default = 1, Min = 1, Max = 3.5, Rounding = 1,
+    Callback = function(Value)
+        MeleeRangeMultiplier = Value
+    end
+})
+
+MeleeRangeGroupbox:AddToggle("KnifeModeToggle", {
+    Text = "KNIFE MODE",
+    Default = false,
+    Callback = function(Value)
+        KnifeModeEnabled = Value
+    end
+})
+
+local BackstapGroupbox = Tabs.Main:AddLeftGroupbox("Always Backstap")
+
+BackstapGroupbox:AddToggle("AlwaysBackstapToggle", {
+    Text = "ALWAYS BACKSTAP",
+    Default = false,
+    Callback = function(Value)
+        AlwaysBackstapEnabled = Value
+    end
+})
+
+BackstapGroupbox:AddSlider("BackstapSlider", {
+    Text = "Backstap Custom",
+    Default = 1, Min = 1, Max = 7.5, Rounding = 1,
+    Callback = function(Value)
+        BackstapMultiplier = Value
+    end
+})
+
+RightGroupbox:AddToggle("SilentAimToggle", {
+    Text = "ENABLED (Silent)",
+    Default = false,
+    Callback = function(Value)
+        getgenv().SilentAimEnabled = Value
+        UpdateFOV()
+    end
+}):AddKeyPicker("SilentAimKey", {
+    Default = "Q",
+    Text = "Silent Aim Keybind",
+    Mode = "Toggle",
+    SyncToggleState = true
+})
+
+RightGroupbox:AddToggle("SilentWallCheckToggle", {
+    Text = "WALL CHECK",
+    Default = false,
+    Callback = function(Value)
+        SilentWallCheck = Value
+    end
+})
+
+RightGroupbox:AddToggle("SilentShowFOVToggle", {
+    Text = "SHOW FOV",
+    Default = false,
+    Callback = function(Value)
+        SilentShowFOV = Value
+        UpdateFOV()
+    end
+}):AddColorPicker("SilentFOVColorPicker", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Silent FOV Color",
+    Callback = function(Value)
+        SilentFOVColor = Value
+        UpdateFOV()
+    end
+})
+
+RightGroupbox:AddToggle("SilentFillFOVToggle", {
+    Text = "FILL FOV",
+    Default = false,
+    Callback = function(Value)
+        SilentFillFOV = Value
+        UpdateFOV()
+    end
+})
+
+RightGroupbox:AddSlider("SilentFOVTransparency", {
+    Text = "TRANSPARENCY FOV",
+    Default = 0, Min = 0, Max = 100, Rounding = 0, Suffix = "%",
+    Callback = function(Value) SilentFOVTransparency = Value; UpdateFOV() end
+})
+
+RightGroupbox:AddSlider("SilentFOVRadius", {
+    Text = "FOV RADIUS",
+    Default = 300, Min = 180, Max = 1000, Rounding = 0,
+    Callback = function(Value) SilentFOVRadius = Value; UpdateFOV() end
+})
+
+local RagebotGroupbox = Tabs.Main:AddRightGroupbox("Ragebot")
+
+RagebotGroupbox:AddToggle("RagebotToggle", {
+    Text = "RAGEBOT ENABLED",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            if OrbitActive then
+                OrbitActive = false
+                if Toggles.OrbitEnabledToggle then
+                    Toggles.OrbitEnabledToggle:SetValue(false)
+                end
+            end
+        end
+
+        RagebotEnabled = Value
+        if Value then
+            if RageMode == "GUN" then
+                EnableRapidFire(true)
+                getgenv().SilentAimEnabled = true
+                UpdateFOV()
+            elseif RageMode == "MELE" then
+                EnableFastMelee(true)
+            elseif RageMode == "SLINGSHOT (BETA)" then
+                setupSlingshot()
+            end
+        else
+            if RageMode == "GUN" then
+                getgenv().SilentAimEnabled = false
+                UpdateFOV()
+            elseif RageMode == "SLINGSHOT (BETA)" then
+                cleanupSlingshot()
+            end
+        end
+    end
+})
+
+RagebotGroupbox:AddToggle("AntiKnifeToggle", {
+    Text = "ANTI KNIFE",
+    Default = false,
+    Callback = function(Value)
+        AntiKnifeEnabled = Value
+    end
+})
+
+RagebotGroupbox:AddDropdown("RageModeDropdown", {
+    Values = {"GUN", "MELE", "KNIFE", "SLINGSHOT (BETA)"},
+    Default = 1,
+    Multi = false,
+    Text = "Rage Mode",
+    Callback = function(Value)
+        local oldMode = RageMode
+        RageMode = Value
+        
+        if oldMode == "SLINGSHOT (BETA)" and RageMode ~= "SLINGSHOT (BETA)" then
+            cleanupSlingshot()
+        end
+
+        if RagebotEnabled then
+            if RageMode == "GUN" then
+                cleanupSlingshot()
+                EnableRapidFire(true)
+                getgenv().SilentAimEnabled = true
+                UpdateFOV()
+            elseif RageMode == "MELE" then
+                cleanupSlingshot()
+                getgenv().SilentAimEnabled = false
+                UpdateFOV()
+                EnableFastMelee(true)
+            elseif RageMode == "KNIFE" then
+                cleanupSlingshot()
+                getgenv().SilentAimEnabled = false
+                UpdateFOV()
+            elseif RageMode == "SLINGSHOT (BETA)" then
+                getgenv().SilentAimEnabled = false
+                UpdateFOV()
+                setupSlingshot()
+            end
+        end
+    end
+})
+
+RagebotGroupbox:AddDropdown("KatanaEscudoDropdown", {
+    Values = {"KATANA FLASH", "ESCUDO"},
+    Default = 1,
+    Multi = true,
+    Text = "Katana & Escudo",
+    Callback = function(Value)
+        KatanaFlashEnabled = Value["KATANA FLASH"] or false
+        EscudoEnabled = Value["ESCUDO"] or false
+    end
+})
+
+local WeaponsGroupbox = Tabs.Main:AddLeftGroupbox("Weapons")
+
+WeaponsGroupbox:AddToggle("RapidFireToggle", {
+    Text = "RAPID FIRE",
+    Default = false,
+    Callback = function(Value)
+        EnableRapidFire(Value)
+    end
+})
+
+WeaponsGroupbox:AddToggle("FastMeleeToggle", {
+    Text = "FAST MELEE",
+    Default = false,
+    Callback = function(Value)
+        EnableFastMelee(Value)
+    end
+})
+
+WeaponsGroupbox:AddToggle("FullAutoToggle", {
+    Text = "FULL AUTO",
+    Default = false,
+    Callback = function(Value)
+        FullAutoEnabled = Value
+        if Value then
+            EnableRapidFire(true)
+        end
+    end
+})
+
+WeaponsGroupbox:AddToggle("NoSpreadToggle", {
+    Text = "NO SPREAD",
+    Default = false,
+    Callback = function(Value)
+    end
+})
+
+WeaponsGroupbox:AddToggle("NoRecoilToggle", {
+    Text = "NO RECOIL",
+    Default = false,
+    Callback = function(Value)
+    end
+})
+
+local OrbitGroupbox = Tabs.Main:AddLeftGroupbox("Orbit")
+
+OrbitGroupbox:AddToggle("OrbitEnabledToggle", {
+    Text = "ENABLED",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            if RagebotEnabled then
+                RagebotEnabled = false
+                if Toggles.RagebotToggle then
+                    Toggles.RagebotToggle:SetValue(false)
+                end
+            end
+        end
+
+        OrbitActive = Value
+    end
+})
+
+OrbitGroupbox:AddSlider("OrbitStudsSlider", {
+    Text = "Orbit Studs",
+    Default = 5, Min = 1, Max = 50, Rounding = 1,
+    Callback = function(Value) OrbitStuds = Value end
+})
+
+OrbitGroupbox:AddSlider("OrbitSpeedSlider", {
+    Text = "Orbit Speed",
+    Default = 2, Min = 1, Max = 20, Rounding = 1,
+    Callback = function(Value) OrbitSpeed = Value end
+})
+
+OrbitGroupbox:AddSlider("OrbitAngleSlider", {
+    Text = "Orbit Angle",
+    Default = 1, Min = 0, Max = 10, Rounding = 1,
+    Callback = function(Value) OrbitAngle = Value end
+})
+
+OrbitGroupbox:AddSlider("OrbitHeightSlider", {
+    Text = "Orbit Height",
+    Default = 0, Min = -20, Max = 20, Rounding = 1, Suffix = " studs",
+    Callback = function(Value) OrbitHeight = Value end
+})
+
+local tickCount = 0
+
+RunService.RenderStepped:Connect(function(dt)
+    tickCount = tickCount + 1
+
+    if AimbotEnabled then
+        local target = GetClosestPlayerAimbot()
+        if target and isTargetValid(target) and target.Character then
+            local head = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
+            if head then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, head.Position)
+            end
+        end
+    end
+
+    if OrbitActive then
+        local target = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if isTargetValid(p) then target = p break end
+        end
+
+        if target and isTargetValid(target) and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = target.Character.HumanoidRootPart
+            local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot then
+                local angle = (tickCount * (OrbitSpeed * 0.05)) * OrbitAngle
+                myRoot.CFrame = hrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, OrbitHeight, OrbitStuds)
+            end
+        else
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local spamOffset = Vector3.new(math.random(-5937473, 5937473), math.random(1000, 5000), math.random(-5937473, 5937473))
+                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(spamOffset) * CFrame.Angles(math.rad(tickCount * 393818), 0, 0)
+            end
+        end
+    end
+
+    if RagebotEnabled then
+        local target = GetClosestTargetPlayer()
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+        if myRoot then
+            if target and isTargetValid(target) and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local tHrp = target.Character.HumanoidRootPart
+                local tHead = target.Character:FindFirstChild("Head") or tHrp
+
+                if RageMode == "GUN" then
+                    if AntiKnifeEnabled then
+                        myRoot.CFrame = tHrp.CFrame * CFrame.new(2.5, 0, 0)
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, tHead.Position)
+                    else
+                        myRoot.CFrame = tHrp.CFrame * CFrame.new(0, 0, 2.5)
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, tHead.Position)
+                    end
+                elseif RageMode == "MELE" then
+                    local angle = tickCount * 0.5
+                    myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, 0, 1)
+                elseif RageMode == "KNIFE" then
+                    myRoot.CFrame = CFrame.new(tHrp.Position - (tHrp.CFrame.LookVector * 2), tHrp.Position)
+                elseif RageMode == "SLINGSHOT (BETA)" then
+                    local angle = tickCount * 50000 * 0.01
+                    myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, 1.5, 3)
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, tHead.Position)
+                end
+            else
+                local spamOffset = Vector3.new(math.random(-9000000, 9000000), math.random(1000, 9000000), math.random(-9000000, 9000000))
+                myRoot.CFrame = CFrame.new(spamOffset) * CFrame.Angles(math.rad(tickCount * 900000), 0, 0)
+            end
+        end
+    end
+end)
+
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateFOV)
+
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu Settings")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Open Keybind Menu",
+    Callback = function(v)
+        Library.KeybindFrame.Visible = v
+    end
+})
+
+MenuGroup:AddLabel("Menu bind")
+:AddKeyPicker("MenuKeybind", {
+    Default = "RightShift",
+    NoUI = true,
+    Text = "Menu keybind"
+})
+
+MenuGroup:AddButton("Unload", function()
+    ScreenGui:Destroy()
+    Library:Unload()
+end)
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({"MenuKeybind"})
+
+ThemeManager:SetFolder("ApocalypseHub")
+SaveManager:SetFolder("ApocalypseHub/configs")
+
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+
+pcall(function()
+    SaveManager:LoadAutoloadConfig()
+end)
+
+Library:Notify(".gg/sdApd5Uxc.", 5)
