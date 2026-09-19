@@ -802,7 +802,7 @@ RunService.RenderStepped:Connect(function(dt)
                     end
                 elseif RageMode == "MELE" then
                     local angle = tickCount * 0.5
-                    myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, 0, 1)
+                    myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, 0, 2)
                 elseif RageMode == "KNIFE" then
                     myRoot.CFrame = CFrame.new(tHrp.Position - (tHrp.CFrame.LookVector * 2), tHrp.Position)
                 elseif RageMode == "SLINGSHOT (BETA)" then
