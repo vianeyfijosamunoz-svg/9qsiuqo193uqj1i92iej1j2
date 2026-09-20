@@ -50,8 +50,8 @@ local EscudoEnabled = false
 local ManipulationText = ""
 
 local OrbitActive = false
-local OrbitStuds = 5
-local OrbitSpeed = 2
+local OrbitStuds = 2.5
+local OrbitSpeed = 500000
 local OrbitAngle = 1
 local OrbitHeight = 0
 
@@ -64,6 +64,26 @@ local projectiles = {}
 local slingConn
 local childAddedConn
 local childRemovedConn
+
+-- Variables de Teleport / Cooldowns en 0
+local TeleportCooldown, TPCooldown, TeleportDelay, TPDelay, TeleportTime, TPTime = 0, 0, 0, 0, 0, 0
+local TeleportRange, TPRange, TeleportDistance, TPDistance, TeleportSpeed, TPSpeed = 0, 0, 0, 0, 0, 0
+local TeleportRadius, TPRadius, TeleportCharge, TPCharge, TeleportReady, TPReady = 0, 0, 0, 0, 0, 0
+local TeleportStart, TPStart, TeleportEnd, TPEnd, TeleportFinish, TPFinish = 0, 0, 0, 0, 0, 0
+local TeleportLoop, TPLoop, TeleportBack, TPBack, TeleportHome, TPHome = 0, 0, 0, 0, 0, 0
+local TeleportTarget, TPTarget, TeleportPlayer, TPPlayer, TeleportEnemy, TPEnemy = 0, 0, 0, 0, 0, 0
+local TeleportAlly, TPAlly, TeleportPoint, TPPoint, TeleportSpot, TPSpot = 0, 0, 0, 0, 0, 0
+local TeleportPos, TPPos, TeleportPosition, TPPosition, TeleportLocation, TPLocation = 0, 0, 0, 0, 0, 0
+local TeleportVector, TPVector, TeleportCFrame, TPCFrame = 0, 0, 0, 0
+local WarpCooldown, WarpDelay, WarpTime, WarpRange, WarpDistance, WarpSpeed = 0, 0, 0, 0, 0, 0
+local WarpRadius, WarpPoint, WarpPosition, WarpLocation, WarpVector, WarpCFrame = 0, 0, 0, 0, 0, 0
+local BlinkCooldown, BlinkDelay, BlinkTime, BlinkRange, BlinkDistance, BlinkSpeed = 0, 0, 0, 0, 0, 0
+local BlinkRadius, BlinkPoint, BlinkPosition, BlinkTarget = 0, 0, 0, 0
+local InstantTeleport, QuickTeleport, RapidTeleport, SilentTeleport, SafeTeleport, AutoTeleport = 0, 0, 0, 0, 0, 0
+local TargetTeleport, PlayerTeleport, EnemyTeleport, AllyTeleport, ReturnTeleport, SpawnTeleport = 0, 0, 0, 0, 0, 0
+local PortalTeleport, PortalWarp, TeleportExit, TeleportEntry, TeleportShift, TeleportJump = 0, 0, 0, 0, 0, 0
+local TeleportTravel, TeleportArrival, TeleportDestination, TeleportOffset, TPOffset = 0, 0, 0, 0, 0
+local TeleportSync, TPDesync = 0, 0
 
 local function setupSlingshot()
     childAddedConn = workspace.ChildAdded:Connect(function(o)
@@ -160,12 +180,14 @@ SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.Viewpor
 
 local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
 local ManipLabel = Instance.new("TextLabel", ScreenGui)
-ManipLabel.Size = UDim2.new(0, 300, 0, 50)
-ManipLabel.Position = UDim2.new(0.5, -150, 0.4, 0)
+-- Ancho moderado y altura compacta de una sola línea
+ManipLabel.Size = UDim2.new(0, 450, 0, 20)
+ManipLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
 ManipLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 ManipLabel.BackgroundTransparency = 1
-ManipLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-ManipLabel.TextScaled = true
+ManipLabel.TextColor3 = Color3.fromRGB(0, 51, 153)
+ManipLabel.TextScaled = false
+ManipLabel.TextSize = 14
 ManipLabel.Font = Enum.Font.SourceSansBold
 ManipLabel.Text = ""
 
@@ -257,18 +279,39 @@ end
 RunService.RenderStepped:Connect(function()
     UpdateFOV()
 
-    local enemyVisible = false
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if isTargetValid(plr) and plr.Character:FindFirstChild("Head") then
-            local _, onScreen = Camera:WorldToViewportPoint(plr.Character.Head.Position)
-            if onScreen then enemyVisible = true break end
+    -- Lógica de texto en pantalla para Orbit / Ragebot en un solo renglón pequeño
+    if OrbitActive then
+        local target = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if isTargetValid(p) then target = p break end
         end
-    end
 
-    if enemyVisible and (KatanaFlashEnabled or EscudoEnabled) then
-        ManipulationText = "MANIPULATED"
+        if target and isTargetValid(target) then
+            ManipulationText = "ORBITUS: " .. string.upper(target.Name)
+        else
+            ManipulationText = "ORBITUS: VOID"
+        end
+    elseif RagebotEnabled then
+        local target = GetClosestTargetPlayer()
+        if target and isTargetValid(target) then
+            ManipulationText = "RAGEBOT: KILLING " .. string.upper(target.Name)
+        else
+            ManipulationText = "RAGEBOT: VOID"
+        end
     else
-        ManipulationText = ""
+        local enemyVisible = false
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if isTargetValid(plr) and plr.Character:FindFirstChild("Head") then
+                local _, onScreen = Camera:WorldToViewportPoint(plr.Character.Head.Position)
+                if onScreen then enemyVisible = true break end
+            end
+        end
+
+        if enemyVisible and (KatanaFlashEnabled or EscudoEnabled) then
+            ManipulationText = "MANIPULATED"
+        else
+            ManipulationText = ""
+        end
     end
     ManipLabel.Text = ManipulationText
 
@@ -589,7 +632,7 @@ RagebotGroupbox:AddToggle("RagebotToggle", {
                 EnableRapidFire(true)
                 getgenv().SilentAimEnabled = true
                 UpdateFOV()
-            elseif RageMode == "MELE" then
+            elseif RageMode == "MELE" or RageMode == "KNIFE" then
                 EnableFastMelee(true)
             elseif RageMode == "SLINGSHOT (BETA)" then
                 setupSlingshot()
@@ -641,6 +684,7 @@ RagebotGroupbox:AddDropdown("RageModeDropdown", {
                 cleanupSlingshot()
                 getgenv().SilentAimEnabled = false
                 UpdateFOV()
+                EnableFastMelee(true)
             elseif RageMode == "SLINGSHOT (BETA)" then
                 getgenv().SilentAimEnabled = false
                 UpdateFOV()
@@ -725,13 +769,13 @@ OrbitGroupbox:AddToggle("OrbitEnabledToggle", {
 
 OrbitGroupbox:AddSlider("OrbitStudsSlider", {
     Text = "Orbit Studs",
-    Default = 5, Min = 1, Max = 50, Rounding = 1,
+    Default = 2.5, Min = 1, Max = 50, Rounding = 1,
     Callback = function(Value) OrbitStuds = Value end
 })
 
 OrbitGroupbox:AddSlider("OrbitSpeedSlider", {
     Text = "Orbit Speed",
-    Default = 2, Min = 1, Max = 20, Rounding = 1,
+    Default = 500000, Min = 1, Max = 1000000, Rounding = 1,
     Callback = function(Value) OrbitSpeed = Value end
 })
 
@@ -802,9 +846,10 @@ RunService.RenderStepped:Connect(function(dt)
                     end
                 elseif RageMode == "MELE" then
                     local angle = tickCount * 0.5
-                    myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, 0, 2)
+                    myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, -1.5, 2)
                 elseif RageMode == "KNIFE" then
-                    myRoot.CFrame = CFrame.new(tHrp.Position - (tHrp.CFrame.LookVector * 2), tHrp.Position)
+                    local lateralOffset = math.sin(tickCount * 5000000 * 0.01) * 3.5
+                    myRoot.CFrame = tHrp.CFrame * CFrame.new(lateralOffset, 0, 2)
                 elseif RageMode == "SLINGSHOT (BETA)" then
                     local angle = tickCount * 50000 * 0.01
                     myRoot.CFrame = tHrp.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(0, 1.5, 3)
@@ -860,4 +905,4 @@ pcall(function()
     SaveManager:LoadAutoloadConfig()
 end)
 
-Library:Notify(".gg/sdApd5Uxc.", 5)
+Library:Notify("THANKS FOR USINGAPOCALYPSEHUB", 5)
