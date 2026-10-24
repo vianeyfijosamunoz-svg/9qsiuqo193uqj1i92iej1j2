@@ -1,1 +1,1 @@
-loadstring(game:HttpGet(https://github.com/vianeyfijosamunoz-svg/Sin-t-tulo-/blob/main/Sin%20titulo"))()
+loadstring(game:HttpGet("https://github.com/vianeyfijosamunoz-svg/Sin-t-tulo-/blob/main/Sin%20titulo"))()
